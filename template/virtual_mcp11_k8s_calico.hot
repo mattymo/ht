@@ -87,6 +87,9 @@ parameters:
   ctl_vip_address:
     type: string
     default: 172.16.10.253
+  public_vip_name:
+    type: string
+    default: kubernetes
 
   cmp_image:
     type: string
@@ -196,9 +199,10 @@ resources:
       reclass_private_key : { get_param: cfg_reclass_private_key }
       formula_branch : { get_param: cfg_formula_branch }
   mcp_k8s_control_cluster:
-    type: MCP::StaticCluster
+    type: MCP::BalancerCluster
     depends_on: mcp_salt_master
     properties:
+      public_net: { get_param: public_net }
       private_net: { get_attr: [mcp_network, private_net_name] }
       admin_net: { get_attr: [mcp_network, admin_net_name] }
       key_pair: { get_param: "OS::stack_name" }
@@ -215,6 +219,7 @@ resources:
       instance01_address: { get_param: ctl01_address }
       instance02_address: { get_param: ctl02_address }
       instance03_address: { get_param: ctl03_address }
+      public_vip_name: { get_param: public_vip_name }
   mcp_k8s_proxy_single:
     type: MCP::ServerInstance
     depends_on: mcp_salt_master
@@ -273,3 +278,6 @@ outputs:
   salt_master_ip:
     value: { get_attr: [mcp_salt_master, config_public] }
     description: "Public IP address of the Salt master node"
+  kubernetes_vip:
+    value: { get_attr: [mcp_k8s_control_cluster, kube_vip_public] }
+    description: "Public IP address of Kubernetes VIP"

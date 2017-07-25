@@ -1,11 +1,13 @@
 heat_template_version: 2015-10-15
 
-description: Server cluster(3 node static)
+description: Server cluster(3 node static) with LoadBalancer
 
 parameters:
   admin_net:
     type: string
   private_net:
+    type: string
+  public_net:
     type: string
   security_group:
     type: string
@@ -34,6 +36,11 @@ parameters:
   instance03_name:
     type: string
   instance03_address:
+    type: string
+  public_vip_name:
+    type: string
+  lb_port:
+    default: '443'
     type: string
 
 resources:
@@ -82,3 +89,72 @@ resources:
       instance_name: { get_param: instance03_name }
       instance_address: { get_param: instance03_address }
       instance_vip_address: { get_param: instance_vip_address }
+
+  pool_member01:
+    type: OS::Neutron::LBaaS::PoolMember
+    properties:
+      pool: { get_resource: pool }
+      address: { get_attr: [instance01, instance_address] }
+      protocol_port: { get_param: lb_port }
+      subnet: { get_param: private_net }
+
+  pool_member02:
+    type: OS::Neutron::LBaaS::PoolMember
+    properties:
+      pool: { get_resource: pool }
+      address: { get_attr: [instance02, instance_address] }
+      protocol_port: { get_param: lb_port }
+      subnet: { get_param: private_net }
+
+  pool_member03:
+    type: OS::Neutron::LBaaS::PoolMember
+    properties:
+      pool: { get_resource: pool }
+      address: { get_attr: [instance03, instance_address] }
+      protocol_port: { get_param: lb_port }
+      subnet: { get_param: private_net }
+
+  monitor:
+    type: OS::Neutron::LBaaS::HealthMonitor
+    properties:
+      delay: 3
+      type: HTTPS
+      timeout: 3
+      max_retries: 3
+      pool: { get_resource: pool }
+
+  pool:
+    type: OS::Neutron::LBaaS::Pool
+    properties:
+      lb_algorithm: ROUND_ROBIN
+      protocol: HTTPS
+      listener: { get_resource: listener }
+
+  listener:
+    type: OS::Neutron::LBaaS::Listener
+    properties:
+      loadbalancer: { get_resource: loadbalancer }
+      protocol: HTTPS
+      protocol_port: { get_param: lb_port }
+
+  loadbalancer:
+    type: OS::Neutron::LBaaS::LoadBalancer
+    properties:
+      name: { get_param: public_vip_name }
+      vip_subnet: { get_param: private_net }
+
+  floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_net }
+      port_id: { get_attr: [loadbalancer, vip_port_id ]}
+
+outputs:
+  kube_vip_public:
+    value:
+      str_replace:
+        template: https://IP_ADDRESS:PORT
+        params:
+          IP_ADDRESS: { get_attr: [ floating_ip, floating_ip_address ] }
+          PORT: { get_param: lb_port }
+    description: "Public IP address of Kubernetes VIP"
