@@ -8,6 +8,9 @@
 # private_key - SSH private key, used to clone reclass model
 # reclass_address - address of reclass model (https://github.com/user/repo.git)
 # reclass_branch - branch of reclass model (master)
+#
+# Optional variables:
+# subnet_id - subnet ID of the first network interface
 
 echo "Installing salt master ..."
 aptget_wrapper install -y reclass git
@@ -87,6 +90,12 @@ parameters:
     infra_config_address: $node_control_ip
     infra_config_deploy_address: $node_ip
 EOF
+
+if [ -n "$subnet_id" ]; then
+cat << EOF >> /srv/salt/reclass/classes/cluster/overrides.yml
+    openstack_subnet_id: $subnet_id
+EOF
+fi
 
 FORMULA_PATH=${FORMULA_PATH:-/usr/share/salt-formulas}
 FORMULA_REPOSITORY=${FORMULA_REPOSITORY:-deb [arch=amd64] http://apt-mk.mirantis.com/xenial testing salt}
